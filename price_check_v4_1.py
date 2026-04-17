@@ -13,6 +13,11 @@ import sys
 import time
 import urllib.request
 import urllib.error
+import smtplib
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email import encoders
 from datetime import datetime, timezone
 from pathlib import Path
 from dataclasses import dataclass, asdict
@@ -518,6 +523,65 @@ def generate_html_report(products, alerts, changes):
 
     return html
 
+def send_email_report(pdf_path, alerts):
+    """Send PDF report via email to configured recipient."""
+    email_sender = os.getenv('EMAIL_SENDER')
+    email_password = os.getenv('EMAIL_PASSWORD')
+    email_recipient = os.getenv('EMAIL_RECIPIENT', 'affiliate@celldigital.co')
+
+    if not email_sender or not email_password:
+        log_run("INFO", "Email credentials not configured, skipping email send")
+        return
+
+    try:
+        # Count alerts for subject line
+        red_count = len(alerts.get('RED', []))
+        yellow_count = len(alerts.get('YELLOW', []))
+        green_count = len(alerts.get('GREEN', []))
+
+        # Create message
+        msg = MIMEMultipart()
+        msg['From'] = email_sender
+        msg['To'] = email_recipient
+        msg['Subject'] = f"TCL Price Monitor Report {DATE} — {red_count} RED, {yellow_count} YELLOW"
+
+        # Email body
+        body = f"""TCL Price Monitor Report — {DATE}
+
+Alert Summary:
+• RED (>15% gap): {red_count}
+• YELLOW (5-15% gap): {yellow_count}
+• GREEN (<5% gap): {green_count}
+
+PDF report attached with detailed price comparisons across DTC, Amazon, and Best Buy.
+
+Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC
+"""
+
+        msg.attach(MIMEText(body, 'plain'))
+
+        # Attach PDF
+        if Path(pdf_path).exists():
+            with open(pdf_path, 'rb') as attachment:
+                part = MIMEBase('application', 'octet-stream')
+                part.set_payload(attachment.read())
+
+            encoders.encode_base64(part)
+            part.add_header('Content-Disposition', f'attachment; filename= {Path(pdf_path).name}')
+            msg.attach(part)
+
+        # Send email via Gmail SMTP
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(email_sender, email_password)
+        server.send_message(msg)
+        server.quit()
+
+        log_run("OK", f"Email report sent to {email_recipient}")
+
+    except Exception as e:
+        log_run("WARNING", f"Email send failed: {e}")
+
 def save_report(html_content, alerts):
     """Save HTML report and generate PDF."""
     # Save HTML to reports directory
@@ -574,8 +638,12 @@ def main(force=False):
     # Generate HTML report
     html = generate_html_report(products, alerts, changes)
 
-    # Save HTML
+    # Save HTML and PDF
+    pdf_path = Path.home() / 'Downloads' / f'tcl_price_monitor_{DATE}.pdf'
     save_report(html, alerts)
+
+    # Send email report
+    send_email_report(str(pdf_path), alerts)
 
     # Update baseline
     new_baseline = {
