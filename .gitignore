@@ -1,0 +1,12 @@
+.env
+.env.local
+*.pyc
+__pycache__/
+.pytest_cache/
+reports/
+logs/
+data/
+*.pdf
+*.html
+venv/
+.vercel/
