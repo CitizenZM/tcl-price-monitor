@@ -54,6 +54,9 @@ async function main() {
   run('report.js', 'CSV report generation');
   run('report-pdf.js', 'PDF report generation');
 
+  // Step 4: Email report
+  run('send-email.js', 'Email report to stakeholders');
+
   log('═══ Daily run complete ═══');
 }
 
