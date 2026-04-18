@@ -162,60 +162,71 @@ async function main() {
   // 1. TCL prices via Shopify API (fast, no browser)
   await checkTclPrices(skus);
 
-  // 2. Amazon (headless) + Best Buy (non-headless, BB blocks headless)
+  const isCI = !!process.env.CI;
+
+  // 2. Amazon + Best Buy via browser
   const skusWithAmazon = skus.filter(s => s.amazon_url);
   const skusWithBestBuy = skus.filter(s => s.bestbuy_url);
 
-  // Amazon — headless works fine
+  // Amazon — bundled Chromium headless works fine
   if (skusWithAmazon.length > 0) {
     console.log(`\n── Checking Amazon (${skusWithAmazon.length} SKUs) ──`);
-    const amzBrowser = await chromium.launch({
-      headless: true,
-      args: ['--disable-blink-features=AutomationControlled'],
-    });
-    const amzContext = await amzBrowser.newContext({
-      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      viewport: { width: 1920, height: 1080 },
-    });
-    const amzPage = await amzContext.newPage();
+    try {
+      const amzBrowser = await chromium.launch({
+        headless: true,
+        args: [
+          '--disable-blink-features=AutomationControlled',
+          ...(isCI ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
+        ],
+      });
+      const amzContext = await amzBrowser.newContext({
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        viewport: { width: 1920, height: 1080 },
+      });
+      const amzPage = await amzContext.newPage();
 
-    for (const sku of skusWithAmazon) {
-      await checkAmazonPrice(amzPage, sku);
-      await delay(2000);
+      for (const sku of skusWithAmazon) {
+        await checkAmazonPrice(amzPage, sku);
+        await delay(2000);
+      }
+      await amzBrowser.close();
+    } catch (e) {
+      console.error(`Amazon browser error: ${e.message}`);
     }
-    await amzBrowser.close();
   }
 
   // Best Buy — system Chrome required (BB blocks Playwright's bundled Chromium)
-  // In CI (GitHub Actions), Chrome is pre-installed; use headless since xvfb isn't needed
   if (skusWithBestBuy.length > 0) {
     console.log(`\n── Checking Best Buy (${skusWithBestBuy.length} SKUs) ──`);
-    const isCI = !!process.env.CI;
-    const bbBrowser = await chromium.launch({
-      channel: 'chrome',
-      headless: isCI,
-      args: [
-        '--disable-blink-features=AutomationControlled',
-        ...(isCI ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
-      ],
-    });
-    const bbContext = await bbBrowser.newContext({
-      viewport: { width: 1440, height: 900 },
-    });
-    const bbPage = await bbContext.newPage();
-    await bbPage.addInitScript(() => {
-      Object.defineProperty(navigator, 'webdriver', { get: () => false });
-    });
+    try {
+      const bbBrowser = await chromium.launch({
+        channel: 'chrome',
+        headless: isCI,
+        args: [
+          '--disable-blink-features=AutomationControlled',
+          ...(isCI ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
+        ],
+      });
+      const bbContext = await bbBrowser.newContext({
+        viewport: { width: 1440, height: 900 },
+      });
+      const bbPage = await bbContext.newPage();
+      await bbPage.addInitScript(() => {
+        Object.defineProperty(navigator, 'webdriver', { get: () => false });
+      });
 
-    // Warm up session cookies
-    await bbPage.goto('https://www.bestbuy.com', { waitUntil: 'domcontentloaded', timeout: 20000 });
-    await delay(2000);
+      // Warm up session cookies
+      await bbPage.goto('https://www.bestbuy.com', { waitUntil: 'domcontentloaded', timeout: 20000 });
+      await delay(2000);
 
-    for (const sku of skusWithBestBuy) {
-      await checkBestBuyPrice(bbPage, sku);
-      await delay(2500);
+      for (const sku of skusWithBestBuy) {
+        await checkBestBuyPrice(bbPage, sku);
+        await delay(2500);
+      }
+      await bbBrowser.close();
+    } catch (e) {
+      console.error(`Best Buy browser error: ${e.message}`);
     }
-    await bbBrowser.close();
   }
 
   console.log('\n=== Price check complete ===');
