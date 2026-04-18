@@ -1,4 +1,6 @@
 node_modules/
-data/
+data/prices.db
+data/prices.db-wal
+data/prices.db-shm
 logs/
 reports/

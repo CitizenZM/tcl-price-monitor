@@ -8,7 +8,7 @@ Daily price monitoring for TCL products across us.tcl.com, Amazon, and Best Buy.
 |-------|-----------|-------|
 | TCL Scraping | Shopify JSON API | `/products.json` — fast, reliable, no browser |
 | Amazon Scraping | Playwright (headless) | Works with standard headless Chrome |
-| Best Buy Scraping | Playwright (non-headless) | BB blocks headless; requires visible browser |
+| Best Buy Scraping | Playwright + system Chrome | BB blocks bundled Chromium; `channel: 'chrome'` bypasses |
 | Storage | SQLite via better-sqlite3 | `data/prices.db` |
 | Scheduling | node-cron + macOS launchd | Daily at 7 AM |
 
@@ -44,5 +44,5 @@ node src/manual-match.js --import urls.json   # Bulk import
 
 - **QM7L/QM8L series**: TCL-only products, not sold on Best Buy
 - **98QM7L, 98X11L**: Not available on Amazon
-- Best Buy requires non-headless browser — schedule runs when display available
+- Best Buy requires system Chrome (`channel: 'chrome'`) — Playwright's bundled Chromium gets `ERR_HTTP2_PROTOCOL_ERROR`
 - TCL "compare_at_price" tracked for sale detection

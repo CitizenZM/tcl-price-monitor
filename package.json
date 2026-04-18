@@ -7,6 +7,7 @@
     "build-catalog": "node src/build-catalog.js",
     "check-prices": "node src/check-prices.js",
     "report": "node src/report.js",
+    "report:pdf": "node src/report-pdf.js",
     "run-all": "node src/run-all.js",
     "match": "node src/match-competitors.js",
     "match:manual": "node src/manual-match.js",
@@ -15,6 +16,7 @@
   "dependencies": {
     "better-sqlite3": "^11.0.0",
     "node-cron": "^3.0.3",
+    "pdfkit": "^0.18.0",
     "playwright": "^1.44.0"
   }
 }

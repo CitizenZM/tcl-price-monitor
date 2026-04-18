@@ -116,7 +116,7 @@ export function getPriceHistory(sku_id, platform, days = 30) {
 export function getAllLatestPrices() {
   return db.prepare(`
     SELECT
-      s.id, s.model, s.title, s.category,
+      s.id, s.model, s.title, s.category, s.specs,
       s.tcl_url, s.amazon_url, s.bestbuy_url,
       tcl.price as tcl_price, tcl.compare_at_price as tcl_compare_price, tcl.in_stock as tcl_in_stock,
       amz.price as amazon_price, amz.in_stock as amazon_in_stock,

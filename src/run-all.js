@@ -50,8 +50,9 @@ async function main() {
   // Step 2: Check prices
   run('check-prices.js', 'Price check');
 
-  // Step 3: Generate report
-  run('report.js', 'Report generation');
+  // Step 3: Generate reports
+  run('report.js', 'CSV report generation');
+  run('report-pdf.js', 'PDF report generation');
 
   log('═══ Daily run complete ═══');
 }

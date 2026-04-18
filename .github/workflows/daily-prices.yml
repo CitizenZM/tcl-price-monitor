@@ -1,0 +1,89 @@
+name: Daily Price Check
+
+on:
+  schedule:
+    # 7 AM ET (11:00 UTC) every day
+    - cron: '0 11 * * *'
+  workflow_dispatch: # manual trigger
+
+jobs:
+  price-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Restore cached SQLite DB from previous runs
+      - name: Restore price database
+        uses: actions/cache/restore@v4
+        with:
+          path: data/prices.db
+          key: prices-db-${{ github.run_id }}
+          restore-keys: |
+            prices-db-
+
+      - name: Ensure data directory
+        run: mkdir -p data reports logs
+
+      # Google Chrome is pre-installed on ubuntu-latest runners
+      - name: Verify Chrome
+        run: google-chrome --version
+
+      - name: Build catalog
+        run: node src/build-catalog.js
+
+      - name: Import seed URLs
+        run: node src/manual-match.js --import data/seed-urls.json
+
+      - name: Check prices (TCL + Amazon + Best Buy)
+        run: node src/check-prices.js
+        env:
+          CI: true
+
+      - name: Generate CSV report
+        run: node src/report.js
+
+      - name: Generate PDF report
+        run: node src/report-pdf.js
+        env:
+          CI: true
+
+      # Cache the DB for next run
+      - name: Save price database
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: data/prices.db
+          key: prices-db-${{ github.run_id }}
+
+      - name: Upload PDF report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tcl-price-report-${{ github.run_id }}
+          path: reports/TCL-Price-Report-*.pdf
+          retention-days: 30
+
+      - name: Upload CSV report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tcl-price-csv-${{ github.run_id }}
+          path: reports/tcl-prices-*.csv
+          retention-days: 30
+
+      - name: Upload logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: run-logs-${{ github.run_id }}
+          path: logs/
+          retention-days: 7
