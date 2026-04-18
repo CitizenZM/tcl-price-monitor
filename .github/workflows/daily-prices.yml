@@ -60,6 +60,12 @@ jobs:
         env:
           CI: true
 
+      - name: Send email report
+        run: node src/send-email.js
+        env:
+          CI: true
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+
       # Cache the DB for next run
       - name: Save price database
         uses: actions/cache/save@v4
