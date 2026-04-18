@@ -99,48 +99,66 @@ async function checkAmazonPrice(page, sku) {
   }
 }
 
-// ── Best Buy (system Chrome — BB blocks Playwright's bundled Chromium) ──
+// ── Best Buy ──────────────────────────────────────────────────────────
+// Two modes:
+//   1. API (BESTBUY_API_KEY) — works from CI/cloud, exact prices
+//   2. Browser (system Chrome) — works locally, BB blocks data center IPs
 
-async function checkBestBuyPrice(page, sku) {
+function extractBestBuySkuId(url) {
+  const match = url.match(/\/(\d{7})\.p/);
+  return match ? match[1] : null;
+}
+
+async function checkBestBuyPricesViaApi(skus, apiKey) {
+  console.log('  Using Best Buy Products API');
+  const batchSize = 10;
+  for (let i = 0; i < skus.length; i += batchSize) {
+    const batch = skus.slice(i, i + batchSize);
+    const skuIds = batch.map(s => extractBestBuySkuId(s.bestbuy_url)).filter(Boolean);
+    const skuFilter = skuIds.map(id => `sku=${id}`).join('|');
+    const apiUrl = `https://api.bestbuy.com/v1/products(${skuFilter})?apiKey=${apiKey}&format=json&show=sku,name,salePrice,regularPrice,onSale,onlineAvailability`;
+
+    try {
+      const res = await fetch(apiUrl);
+      if (!res.ok) { console.error(`  API error: ${res.status}`); continue; }
+      const data = await res.json();
+
+      for (const product of data.products || []) {
+        const sku = skus.find(s => extractBestBuySkuId(s.bestbuy_url) === String(product.sku));
+        if (!sku) continue;
+        const price = product.salePrice ?? product.regularPrice ?? null;
+        const inStock = product.onlineAvailability ?? false;
+        recordPrice({ sku_id: sku.id, platform: 'bestbuy', price, compare_at_price: null, in_stock: inStock });
+        console.log(`  ✅ ${sku.model} Best Buy: $${price ?? 'N/A'} ${inStock ? '✓' : '✗'}${product.onSale ? ' SALE' : ''}`);
+      }
+    } catch (e) {
+      console.error(`  API batch error: ${e.message}`);
+    }
+    await delay(500);
+  }
+}
+
+async function checkBestBuyPriceViaBrowser(page, sku) {
   if (!sku.bestbuy_url) return;
   try {
     await page.goto(sku.bestbuy_url, { waitUntil: 'domcontentloaded', timeout: 20000 });
     await delay(2500);
 
-    // Extract price from page — BB renders prices in multiple locations
-    let price = null;
-    let compareAt = null;
-
     const result = await page.evaluate(() => {
       const body = document.body.innerText;
-      // Find all price patterns
       const priceMatches = body.match(/\$[\d,]+\.?\d*/g) || [];
-      const prices = priceMatches
-        .map(p => parseFloat(p.replace(/[$,]/g, '')))
-        .filter(p => p > 10);
-
-      // Look for "Comp. Value" or "Was" price
+      const prices = priceMatches.map(p => parseFloat(p.replace(/[$,]/g, ''))).filter(p => p > 10);
       let compareAt = null;
       const compMatch = body.match(/Comp\.\s*Value:\s*\$([\d,]+\.?\d*)/i);
       if (compMatch) compareAt = parseFloat(compMatch[1].replace(/,/g, ''));
       const wasMatch = body.match(/Was\s*\$([\d,]+\.?\d*)/i);
       if (!compareAt && wasMatch) compareAt = parseFloat(wasMatch[1].replace(/,/g, ''));
-
-      // First price is usually the sale/current price
-      const salePrice = prices.length > 0 ? prices[0] : null;
-
-      // Check stock
       const soldOut = body.toLowerCase().includes('sold out') || body.toLowerCase().includes('coming soon');
-
-      return { price: salePrice, compareAt, inStock: !soldOut };
+      return { price: prices[0] || null, compareAt, inStock: !soldOut };
     });
 
-    price = result.price;
-    compareAt = result.compareAt;
-    const inStock = result.inStock;
-
-    recordPrice({ sku_id: sku.id, platform: 'bestbuy', price, compare_at_price: compareAt, in_stock: inStock });
-    console.log(`  ✅ ${sku.model} Best Buy: $${price ?? 'N/A'}${compareAt ? ` (was $${compareAt})` : ''} ${inStock ? '✓' : '✗'}`);
+    recordPrice({ sku_id: sku.id, platform: 'bestbuy', price: result.price, compare_at_price: result.compareAt, in_stock: result.inStock });
+    console.log(`  ✅ ${sku.model} Best Buy: $${result.price ?? 'N/A'}${result.compareAt ? ` (was $${result.compareAt})` : ''} ${result.inStock ? '✓' : '✗'}`);
   } catch (e) {
     console.error(`  ❌ ${sku.model} Best Buy error: ${e.message.split('\n')[0]}`);
     recordPrice({ sku_id: sku.id, platform: 'bestbuy', price: null, compare_at_price: null, in_stock: false });
@@ -195,37 +213,39 @@ async function main() {
     }
   }
 
-  // Best Buy — system Chrome required (BB blocks Playwright's bundled Chromium)
+  // Best Buy — API if key available (works in CI), browser otherwise (local only)
   if (skusWithBestBuy.length > 0) {
     console.log(`\n── Checking Best Buy (${skusWithBestBuy.length} SKUs) ──`);
-    try {
-      const bbBrowser = await chromium.launch({
-        channel: 'chrome',
-        headless: isCI,
-        args: [
-          '--disable-blink-features=AutomationControlled',
-          ...(isCI ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
-        ],
-      });
-      const bbContext = await bbBrowser.newContext({
-        viewport: { width: 1440, height: 900 },
-      });
-      const bbPage = await bbContext.newPage();
-      await bbPage.addInitScript(() => {
-        Object.defineProperty(navigator, 'webdriver', { get: () => false });
-      });
+    const bbApiKey = process.env.BESTBUY_API_KEY;
 
-      // Warm up session cookies
-      await bbPage.goto('https://www.bestbuy.com', { waitUntil: 'domcontentloaded', timeout: 20000 });
-      await delay(2000);
-
-      for (const sku of skusWithBestBuy) {
-        await checkBestBuyPrice(bbPage, sku);
-        await delay(2500);
+    if (bbApiKey) {
+      await checkBestBuyPricesViaApi(skusWithBestBuy, bbApiKey);
+    } else if (!isCI) {
+      // Browser scraping only works from residential IPs (local machine)
+      try {
+        const bbBrowser = await chromium.launch({
+          channel: 'chrome',
+          headless: false,
+          args: ['--disable-blink-features=AutomationControlled'],
+        });
+        const bbContext = await bbBrowser.newContext({ viewport: { width: 1440, height: 900 } });
+        const bbPage = await bbContext.newPage();
+        await bbPage.addInitScript(() => {
+          Object.defineProperty(navigator, 'webdriver', { get: () => false });
+        });
+        await bbPage.goto('https://www.bestbuy.com', { waitUntil: 'domcontentloaded', timeout: 20000 });
+        await delay(2000);
+        for (const sku of skusWithBestBuy) {
+          await checkBestBuyPriceViaBrowser(bbPage, sku);
+          await delay(2500);
+        }
+        await bbBrowser.close();
+      } catch (e) {
+        console.error(`Best Buy browser error: ${e.message}`);
       }
-      await bbBrowser.close();
-    } catch (e) {
-      console.error(`Best Buy browser error: ${e.message}`);
+    } else {
+      console.log('  Skipping — BESTBUY_API_KEY not set (browser scraping blocked from CI IPs)');
+      console.log('  Get free API key at: https://developer.bestbuy.com/');
     }
   }
 

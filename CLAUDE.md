@@ -10,7 +10,8 @@ Daily price monitoring for TCL products across us.tcl.com, Amazon, and Best Buy.
 | Amazon Scraping | Playwright (headless) | Works with standard headless Chrome |
 | Best Buy Scraping | Playwright + system Chrome | BB blocks bundled Chromium; `channel: 'chrome'` bypasses |
 | Storage | SQLite via better-sqlite3 | `data/prices.db` |
-| Scheduling | node-cron + macOS launchd | Daily at 7 AM |
+| Scheduling | GitHub Actions cron | Daily at 7 AM ET (11:00 UTC) |
+| Local Scheduling | node-cron | `npm run schedule` for local daily runs |
 
 ## Commands
 
@@ -46,3 +47,12 @@ node src/manual-match.js --import urls.json   # Bulk import
 - **98QM7L, 98X11L**: Not available on Amazon
 - Best Buy requires system Chrome (`channel: 'chrome'`) — Playwright's bundled Chromium gets `ERR_HTTP2_PROTOCOL_ERROR`
 - TCL "compare_at_price" tracked for sale detection
+
+## CI/CD
+
+- **GitHub repo**: CitizenZM/tcl-price-monitor (private)
+- **Daily cron**: `.github/workflows/daily-prices.yml` — runs at 11:00 UTC (7 AM ET)
+- **Manual trigger**: `gh workflow run daily-prices.yml`
+- **SQLite DB**: cached between runs via `actions/cache`
+- **Artifacts**: PDF + CSV reports uploaded, retained 30 days
+- **CI mode**: `CI=true` switches Best Buy to headless Chrome, PDF outputs to `reports/`
