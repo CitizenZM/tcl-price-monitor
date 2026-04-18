@@ -1,7 +1,8 @@
 /**
  * Email Report — sends TCL Price Report PDF to stakeholders
- * Requires GMAIL_APP_PASSWORD in .env (Google App Password, not regular password)
- * Generate at: https://myaccount.google.com/apppasswords
+ * Requires EMAIL_PASSWORD in .env
+ * For Google Workspace: use App Password from https://myaccount.google.com/apppasswords
+ * Or regular password if "less secure apps" / SMTP relay is enabled
  */
 import nodemailer from 'nodemailer';
 import { existsSync, readFileSync } from 'fs';
@@ -21,7 +22,7 @@ if (existsSync(envPath)) {
   }
 }
 
-const SENDER = 'barronzuo@gmail.com';
+const SENDER = 'affiliate@celldigital.co';
 const RECIPIENTS = [
   'lillian.li@celldigital.co',
   'fanfan@celldigital.co',
@@ -135,7 +136,9 @@ async function main() {
   }
 
   const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
     auth: { user: SENDER, pass: appPassword },
   });
 
