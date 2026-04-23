@@ -194,12 +194,14 @@ async function main() {
         headless: true,
         args: [
           '--disable-blink-features=AutomationControlled',
-          ...(isCI ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
         ],
       });
       const amzContext = await amzBrowser.newContext({
         userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         viewport: { width: 1920, height: 1080 },
+        ignoreHTTPSErrors: true,
       });
       const amzPage = await amzContext.newPage();
 
@@ -223,12 +225,23 @@ async function main() {
     } else if (!isCI) {
       // Browser scraping only works from residential IPs (local machine)
       try {
-        const bbBrowser = await chromium.launch({
+        let bbLaunchOpts = {
           channel: 'chrome',
           headless: false,
           args: ['--disable-blink-features=AutomationControlled'],
-        });
-        const bbContext = await bbBrowser.newContext({ viewport: { width: 1440, height: 900 } });
+        };
+        // Fall back to bundled Chromium if system Chrome not installed
+        try {
+          await chromium.launch({ channel: 'chrome', headless: true }).then(b => b.close());
+        } catch {
+          bbLaunchOpts = {
+            headless: true,
+            args: ['--disable-blink-features=AutomationControlled', '--no-sandbox', '--disable-setuid-sandbox'],
+          };
+          console.log('  (system Chrome not found, using bundled Chromium)');
+        }
+        const bbBrowser = await chromium.launch(bbLaunchOpts);
+        const bbContext = await bbBrowser.newContext({ viewport: { width: 1440, height: 900 }, ignoreHTTPSErrors: true });
         const bbPage = await bbContext.newPage();
         await bbPage.addInitScript(() => {
           Object.defineProperty(navigator, 'webdriver', { get: () => false });
