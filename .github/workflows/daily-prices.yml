@@ -2,43 +2,37 @@ name: Daily Price Check
 
 on:
   schedule:
-    # 7 AM ET (11:00 UTC) every day
-    - cron: '0 11 * * *'
-  workflow_dispatch: # manual trigger
+    # 7 PM PST = 03:00 UTC next day
+    - cron: '0 3 * * *'
+  workflow_dispatch:
 
 jobs:
   price-check:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Playwright browsers
-        run: npx playwright install chromium chrome --with-deps
+      - name: Install Playwright Chromium only
+        run: npx playwright install chromium --with-deps
 
-      # Restore cached SQLite DB from previous runs
       - name: Restore price database
         uses: actions/cache/restore@v4
         with:
           path: data/prices.db
           key: prices-db-${{ github.run_id }}
-          restore-keys: |
-            prices-db-
+          restore-keys: prices-db-
 
-      - name: Ensure data directory
+      - name: Ensure directories
         run: mkdir -p data reports logs
-
-      # Google Chrome is pre-installed on ubuntu-latest runners
-      - name: Verify Chrome
-        run: google-chrome --version
 
       - name: Build catalog
         run: node src/build-catalog.js

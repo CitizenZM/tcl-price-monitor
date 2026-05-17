@@ -43,10 +43,11 @@ node src/manual-match.js --import urls.json   # Bulk import
 
 ## Key Decisions
 
-- **QM7L/QM8L series**: TCL-only products, not sold on Best Buy
+- **QM7L/QM8L series**: Available on Amazon, not Best Buy (2026 models)
 - **98QM7L, 98X11L**: Not available on Amazon
-- Best Buy requires system Chrome (`channel: 'chrome'`) — Playwright's bundled Chromium gets `ERR_HTTP2_PROTOCOL_ERROR`
+- **Best Buy is fully blocked** — HTTP2 INTERNAL_ERROR on all `/site/` paths from any Playwright browser (bundled Chromium, system Chrome via CDP, MCP browser). BB's bot-detection rejects non-browser TLS fingerprints. The ONLY working solution is `BESTBUY_API_KEY` in `.env` which enables the official Products API. Register free at https://developer.bestbuy.com/
 - TCL "compare_at_price" tracked for sale detection
+- Seed URLs are in `data/seed-urls.json` — always re-import after DB reset: `node src/manual-match.js --import data/seed-urls.json`
 
 ## CI/CD
 

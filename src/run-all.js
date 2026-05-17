@@ -1,6 +1,5 @@
 /**
- * Orchestrator: runs catalog build → price check → report in sequence.
- * Used by the daily scheduler.
+ * Orchestrator: catalog → seed import → price check → report → email
  */
 import { execSync } from 'child_process';
 import { resolve, dirname } from 'path';
@@ -16,51 +15,37 @@ const today = new Date().toISOString().split('T')[0];
 const logFile = resolve(LOG_DIR, `run-${today}.log`);
 
 function log(msg) {
-  const ts = new Date().toISOString();
-  const line = `[${ts}] ${msg}`;
+  const line = `[${new Date().toISOString()}] ${msg}`;
   console.log(line);
   appendFileSync(logFile, line + '\n');
 }
 
-function run(cmd, label) {
-  log(`Starting: ${label}`);
+function run(label, cmd) {
+  log(`START: ${label}`);
   try {
-    const output = execSync(`node ${resolve(ROOT, 'src', cmd)}`, {
-      cwd: ROOT,
-      encoding: 'utf-8',
-      timeout: 600000, // 10 min
+    const out = execSync(`node ${resolve(ROOT, 'src', cmd)}`, {
+      cwd: ROOT, encoding: 'utf-8', timeout: 600000,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
-    log(`Completed: ${label}`);
-    appendFileSync(logFile, output + '\n');
+    log(`OK: ${label}`);
+    if (out.trim()) appendFileSync(logFile, out + '\n');
     return true;
   } catch (e) {
-    log(`FAILED: ${label} — ${e.message}`);
-    appendFileSync(logFile, (e.stdout || '') + '\n' + (e.stderr || '') + '\n');
+    log(`FAIL: ${label} — ${e.message.split('\n')[0]}`);
+    appendFileSync(logFile, (e.stdout || '') + (e.stderr || '') + '\n');
     return false;
   }
 }
 
 async function main() {
   log('═══ TCL Price Monitor — Daily Run ═══');
-
-  // Step 1: Refresh catalog
-  run('build-catalog.js', 'Catalog refresh');
-
-  // Step 2: Check prices
-  run('check-prices.js', 'Price check');
-
-  // Step 3: Generate reports
-  run('report.js', 'CSV report generation');
-  run('report-pdf.js', 'PDF report generation');
-
-  // Step 4: Email report
-  run('send-email.js', 'Email report to stakeholders');
-
+  run('Catalog refresh',    'build-catalog.js');
+  run('Seed URL import',    'manual-match.js --import data/seed-urls.json');  // always re-sync known URLs
+  run('Price check',        'check-prices.js');
+  run('CSV report',         'report.js');
+  run('PDF report',         'report-pdf.js');
+  run('Email report',       'send-email.js');
   log('═══ Daily run complete ═══');
 }
 
-main().catch(e => {
-  log(`Fatal error: ${e.message}`);
-  process.exit(1);
-});
+main().catch(e => { log(`Fatal: ${e.message}`); process.exit(1); });

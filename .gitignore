@@ -5,3 +5,4 @@ data/prices.db-wal
 data/prices.db-shm
 logs/
 reports/
+.git.nosync
