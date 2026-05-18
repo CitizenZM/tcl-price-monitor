@@ -8,10 +8,10 @@ Daily price monitoring for TCL products across us.tcl.com, Amazon, and Best Buy.
 |-------|-----------|-------|
 | TCL Scraping | Shopify JSON API | `/products.json` — fast, reliable, no browser |
 | Amazon Scraping | Playwright (headless) | Works with standard headless Chrome |
-| Best Buy Scraping | Playwright + system Chrome | BB blocks bundled Chromium; `channel: 'chrome'` bypasses |
+| Best Buy Scraping | Playwright headless Chromium | Search-page scrape via `data-product-id` attr + scroll-to-render. BB blocks product-page paths; search pages work. Only records price when scraped skuId exactly matches our stored BB skuId — no false matches. |
 | Storage | SQLite via better-sqlite3 | `data/prices.db` |
-| Scheduling | GitHub Actions cron | Daily at 7 AM ET (11:00 UTC) |
-| Local Scheduling | node-cron | `npm run schedule` for local daily runs |
+| Scheduling | macOS launchd | Daily at 7 PM PST via `~/Library/LaunchAgents/com.celldigital.tcl-price-monitor.plist` |
+| Scheduling | GitHub Actions cron | `0 3 * * *` UTC (7 PM PST fallback / CI) |
 
 ## Commands
 
