@@ -15,10 +15,10 @@
     "schedule": "node src/scheduler.js"
   },
   "dependencies": {
-    "better-sqlite3": "^11.0.0",
+    "better-sqlite3": "^12.10.0",
     "node-cron": "^3.0.3",
     "nodemailer": "^8.0.5",
     "pdfkit": "^0.18.0",
-    "playwright": "^1.44.0"
+    "playwright": "^1.60.0"
   }
 }
