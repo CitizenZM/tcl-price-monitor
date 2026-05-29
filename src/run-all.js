@@ -26,6 +26,7 @@ function run(label, cmd) {
     const out = execSync(`node ${resolve(ROOT, 'src', cmd)}`, {
       cwd: ROOT, encoding: 'utf-8', timeout: 600000,
       stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 1200000, // 20 min — BB browser scrolling needs extra time
     });
     log(`OK: ${label}`);
     if (out.trim()) appendFileSync(logFile, out + '\n');
