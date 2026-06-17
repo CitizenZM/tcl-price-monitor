@@ -6,3 +6,4 @@ data/prices.db-shm
 logs/
 reports/
 .git.nosync
+.codegraph/

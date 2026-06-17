@@ -57,3 +57,9 @@ node src/manual-match.js --import urls.json   # Bulk import
 - **SQLite DB**: cached between runs via `actions/cache`
 - **Artifacts**: PDF + CSV reports uploaded, retained 30 days
 - **CI mode**: `CI=true` switches Best Buy to headless Chrome, PDF outputs to `reports/`
+
+## CodeGraph
+Index at `.codegraph/` — semantic code search, call graph, impact analysis.
+- Query: `codegraph context "your task"` or use the MCP tools in Claude Code
+- After adding many files: `codegraph sync <project-path>`
+- Binary: `~/.local/bin/codegraph`
