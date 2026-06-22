@@ -3,7 +3,9 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DB_PATH = resolve(__dirname, '..', 'data', 'prices.db');
+// iCloud Drive blocks SQLite WAL shared-memory files (.shm/.wal).
+// Use a local path outside iCloud for the live DB; seed-urls.json etc stay in data/.
+const DB_PATH = process.env.TCL_DB_PATH || '/tmp/tcl-prices.db';
 
 // Ensure data directory exists
 import { mkdirSync } from 'fs';
